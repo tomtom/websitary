@@ -1,0 +1,780 @@
+websitary by Thomas Link
+http://rubyforge.org/projects/websitiary/
+
+This script monitors webpages, rss feeds, podcasts etc. and reports 
+what's new. For many tasks, it reuses other programs to do the actual 
+work. By default, it works on an ASCII basis, i.e. with the output of 
+text-based webbrowsers. With the help of some friends, it works also 
+with HTML.
+
+
+== DESCRIPTION:
+websitary (formerly known as websitiary with an extra "i") monitors 
+webpages, rss feeds, podcasts etc. It reuses other programs (w3m, diff 
+etc.) to do most of the actual work. By default, it works on an ASCII 
+basis, i.e. with the output of text-based webbrowsers like w3m (or lynx, 
+links etc.) as the output can easily be post-processed. It can also work 
+with HTML and highlight new items. This script was originally planned as 
+a ruby-based websec replacement.
+
+By default, this script will use w3m to dump HTML pages and then run 
+diff over the current page and the previous backup. Some pages are 
+better viewed with lynx or links. Downloaded documents (HTML or ASCII) 
+can be post-processed (e.g., filtered through some ruby block that 
+extracts elements via hpricot and the like). Please see the 
+configuration options below to find out how to change this globally or 
+for a single source.
+
+This user manual is also available as
+PDF[http://websitiary.rubyforge.org/websitary.pdf].
+
+
+== FEATURES/PROBLEMS:
+* Handle webpages, rss feeds (optionally save attachments in podcasts 
+  etc.)
+* Compare webpages with previous backups
+* Display differences between the current version and the backup
+* Provide hooks to post-process the downloaded documents and the diff
+* Display a one-page report summarizing all news
+* Automatically open the report in your favourite web-browser
+* Experimental: Download webpages on defined intervalls and generate 
+  incremental diffs.
+
+ISSUES, TODO:
+* With HTML output, changes are presented on one single page, which 
+  means that pages with different encodings cause problems.
+* Improved support for robots.txt (test it)
+* The use of :website_below and :website is hardly tested (please 
+  report errors).
+* download => :body_html tries to rewrite references (a, img) which may 
+  fail on certain kind of urls (please report errors).
+* When using :body_html for download, it may happen that some 
+  JavaScript code is stripped, which breaks some JavaScript-generated 
+  links.
+* The --log command line will create a new instance of the logger and 
+  thus reset any previous options related to the logging level.
+
+NOTE: The script was previously called websitiary but was renamed (from 
+0.2 on) to websitary (without the superfluous i).
+
+
+=== Caveat
+The script also includes experimental support for monitoring whole 
+websites. Basically, this script supports robots.txt directives (see 
+requirements) but this is hardly tested and may not work in some cases.
+
+While it is okay for your own websites to ignore robots.txt, it is not 
+for others. Please make sure that the webpages you run this program on 
+allow such a use.  Some webpages disallow the use of any automatic 
+downloader or offline reader in their user agreements.
+
+
+== SYNOPSIS:
+
+=== Usage
+Example:
+  # Run "profile"
+  websitary profile
+  
+  # Edit "~/.websitary/profile.rb"
+  websitary --edit=profile
+  
+  # View the latest report
+  websitary -ereview
+  
+  # Refetch all sources regardless of :days and :hours restrictions
+  websitary -signore_age=true
+  
+  # Create html and rss reports for my websites
+  websitary -fhtml,rss mysites
+  
+  # Add an url to the quicklist profile
+  websitary -eadd http://www.example.com
+
+For example output see:
+* html[http://deplate.sourceforge.net/websitary.html]
+* rss[http://deplate.sourceforge.net/websitary.rss]
+* text[http://deplate.sourceforge.net/websitary.txt]
+
+
+=== Configuration
+Profiles are plain ruby files (with the '.rb' suffix) stored in 
+~/.websitary/.
+
+The profile "config" (~/.websitary/config.rb) is always loaded if 
+available.
+
+There are two special profile names:
+
+-::
+    Read URLs from STDIN.
+<tt>__END__</tt>::
+    Read the profile contained in the script source after the __END__ 
+    line.
+
+
+==== default 'PROFILE1', 'PROFILE2' ...
+Set the default profile(s). The default is: quicklist
+
+Example:
+  default 'my_profile'
+
+
+==== diff 'CMD "%s" "%s"'
+Use this shell command to make the diff.
+%s %s will be replaced with the old and new filename.
+
+diff is used by default.
+
+
+==== diffprocess lambda {|text| ...}
+Use this ruby snippet to post-process the diff.
+
+
+==== download 'CMD "%s"'
+Use this shell command to download a page.
+%s will be replaced with the url.
+
+w3m is used by default.
+
+Example:
+  download 'lynx -dump "%s"'
+
+
+==== downloadprocess lambda {|text| ...}
+Use this ruby snippet to post-process what was downloaded. Return the 
+new text.
+
+
+==== edit 'CMD "%s"'
+Use this shell command to edit a profile. %s will be replaced with the filename.
+
+vi is used by default.
+
+Example:
+  edit 'gvim "%s"&'
+
+
+==== option TYPE, OPTION => VALUE
+Set a global option.
+
+TYPE can be one of:
+<tt>:diff</tt>::
+  Generate a diff
+<tt>:diffprocess</tt>::
+  Post-process a diff (if necessary)
+<tt>:format</tt>::
+  Format the diff for output
+<tt>:download</tt>::
+  Download webpages
+<tt>:downloadprocess</tt>::
+  Post-process downloaded webpages
+<tt>:page</tt>::
+  The :format field defines the format of the final report. Here VALUE 
+  is a format string that takes 3 variables as arguments: report title, 
+  toc, contents.
+<tt>:global</tt>::
+  Set a "global" option.
+
+DOWNLOAD is a symbol
+
+VALUE is either a format string or a block of code (of class Proc).
+
+Example:
+  set :download, :foo => lambda {|url| get_url(url)}
+
+
+==== global OPTION => VALUE
+This is the same a <tt>option :global, OPTION => VALUE</tt>.
+
+Known global options:
+
+<tt>:canonic_filename => BLOCK(FILENAME)</tt>::
+  Rewrite filenames as they are stored in the mtimes register. This may 
+  useful if you want to use the same repository on several computers 
+  with in different locations etc.
+
+<tt>:encoding => OUTPUT_DOCUMENT_ENCODING</tt>::
+  The default is 'ISO-8859-1'.
+
+<tt>:downloadhtml => SHORTCUT</tt>::
+  The default shortcut for downloading plain HTML.
+
+<tt>:file_url => BLOCK(FILENAME)</tt>::
+  Rewrite a filename as it is used for creating file urls to local 
+  copies in the output. This may useful if you want to use the same 
+  repository on several computers with in different locations etc.
+
+<tt>:filename_size => N</tt>::
+  The max filename size. If a filename becomes longer, md5 encoding will 
+  be used for local copies in the cache.
+
+<tt>:toggle_body => BOOLEAN</tt>::
+  If true, make a news body collabsable on mouse-clicks (sort of).
+
+<tt>:proxy => STRING</tt>, <tt>:proxy => ARRAY</tt>::
+  The proxy. (currently only supported by mechanize)
+
+<tt>:user_agent => STRING</tt>::
+  Set the user agent (only for certain queries).
+
+
+==== output_format FORMAT, output_format [FORMAT1, FORMAT2, ...]
+Set the output format.
+Format can be one of:
+
+* html
+* text, txt (this only works with text based downloaders)
+* rss (prove of concept only;
+  it requires :rss[:url] to be set to the url, where the rss feed will 
+  be published, using the <tt>option :rss, :url => URL</tt> 
+  configuration command; you either have to use a text-based downloader 
+  or include <tt>:rss_format => 'html'</tt> to the url options)
+
+
+==== set OPTION => VALUE; set TYPE, OPTION => VALUE; unset OPTIONS
+(Un)Set an option for the following source commands.
+
+Example:
+  set :download, :foo => lambda {|url| get_url(url)}
+  set :days => 7, sort => true
+  unset :days, :sort
+
+
+==== source URL(S), [OPTIONS]
+Options
+
+<tt>:cols => FROM..TO</tt>::
+  Use only these colums from the output (used after applying the :lines 
+  option)
+
+<tt>:depth => INTEGER</tt>::
+  In conjunction with a :website type of :download option, fetch url up 
+  to this depth.
+
+<tt>:diff => "CMD", :diff => SHORTCUT</tt>::
+  Use this command to make the diff for this page. Possible values for 
+  SHORTCUT are: :webdiff (useful in conjunction with :download => :curl, 
+  :wget, or :body_html), :websec_webdiff (use websec's webdiff tool), 
+  :body_html, :website_below, :website and :openuri are synonyms for 
+  :webdiff.
+  NOTE: Since version 0.3, :webdiff is mapped to websitary's own 
+  htmldiff class (which can also be used as stand-alone script). Before 
+  0.3, websitary used websec's webdiff script, which is now mapped to 
+  :websec_webdiff.
+
+<tt>:diffprocess => lambda {|text| ...}</tt>::
+  Use this ruby snippet to post-process this diff
+
+<tt>:download => "CMD", :download => SHORTCUT</tt>::
+  Use this command to download this page. For possible values for 
+  SHORTCUT see the section on shortcuts below.
+
+<tt>:downloadprocess => lambda {|text| ...}</tt>::
+  Use this ruby snippet to post-process what was downloaded. This is the 
+  place where, e.g., hpricot can be used to extract certain elements 
+  from the HTML code.
+  Example:
+    lambda {|text| Hpricot(text).at('div#content').inner_html}
+
+<tt>:format => "FORMAT %s STRING", :format => SHORTCUT</tt>::
+  The format string for the diff text. The default (the :diff shortcut) 
+  wraps the output in +pre+ tags. :webdiff, :body_html, :website_below, 
+  :website, and :openuri will simply add a newline character.
+
+<tt>:iconv => ENCODING</tt>::
+  If set, use iconv to convert the page body into the summary's document 
+  encoding (see the 'global' section). Websitary currently isn't able to 
+  automatically determine and convert encodings.
+
+<tt>:timeout => SECONDS</tt>::
+  When using openuri, download the page with a timeout.
+
+<tt>:hours => HOURS, :days => DAYS</tt>::
+  Don't download the file unless it's older than that
+
+<tt>:days_of_month => DAY..DAY, :wdays => DAY..DAY</tt>::
+  Download only once per month within a certain range of days (e.g., 
+  15..31 ... Check once after the 15th). The argument can also be an 
+  array (e.g, [1, 15]) or an integer.
+
+<tt>:days_of_week => DAY..DAY, :mdays => DAY..DAY</tt>::
+  Download only once per week within a certain range of days (e.g., 1..2 
+  ... Check once on monday or tuesday; sunday = 0). The argument can 
+  also be an array (e.g, [1, 15]) or an integer.
+
+<tt>:daily => true</tt>::
+  Download only once a day.
+
+<tt>:ignore_age => true</tt>::
+  Ignore any :days and :hours settings. This is useful in some cases 
+  when set on the command line.
+
+<tt>:lines => FROM..TO</tt>::
+  Use only these lines from the output
+
+<tt>:match => REGEXP</tt>::
+  When recursively walking a website, follow only links that match this 
+  regexp.
+
+<tt>:rss_rewrite_enclosed_urls => true</tt>::
+  If true, replace urls in the rss feed item description pointing to the 
+  enclosure with a file url pointing to the local copy
+
+<tt>:rss_enclosure => true|"DIRECTORY"</tt>::
+  If true, save rss feed enclosures in 
+  "~/.websitary/attachments/RSS_FEED_NAME/". If a string, use this as 
+  destination directory. Only enclosures of new items will be saved -- 
+  i.e. when downloading a feed for the first time, no enclosures will be 
+  saved.
+
+<tt>:rss_find_enclosure => BLOCK</tt>::
+  Certain RSS-feeds embed enclosures in the description. Use this option 
+  to scan the description (a Hpricot document) for an URL that is then saved 
+  as enclosure if the :rss_enclosure option is set.
+  Example:
+      source 'http://www.example.com/rss',
+        :title => 'Example',
+        :use => :rss, :rss_enclosure => true,
+        :rss_find_enclosure => lambda {|item, doc| (doc / 'img').map {|e| e['src']}[0]}
+
+<tt>:rss_format (default: "plain_text")</tt>::
+    When output format is :rss, create rss item descriptios as plain text.
+
+<tt>:rss_format_local_copy => FORMAT_STRING | BLOCK</tt>::
+    By default a hypertext reference to the local copy of an RSS 
+    enclosure is added to entry. Sometimes you may want to display 
+    something inline (e.g. an image). You can then use this option to 
+    define a format string (one field = the local copy's file url).
+
+<tt>:show_initial => true</tt>::
+    Include initial copies in the report (may not always work properly). 
+    This can also be set as a global option.
+
+<tt>:sleep => SECS</tt>::
+    Wait SECS seconds (float or integer) before downloading the page.
+
+<tt>:sort => true, :sort => lambda {|a,b| ...}</tt>::
+  Sort lines in output
+
+<tt>:strip => true</tt>::
+  Strip empty lines
+
+<tt>:title => "TEXT"</tt>::
+  Display TEXT instead of URL
+
+<tt>:use => SYMBOL</tt>::
+  Use SYMBOL for any other option. I.e. <tt>:download => :body_html 
+  :diff => :webdiff</tt> can be abbreviated as <tt>:use => 
+  :body_html</tt> (because for :diff :body_html is a synonym for 
+  :webdiff).
+
+The order of age constraints is:
+:hours > :daily > :wdays > :mdays > :days > :months.
+I.e. if :wdays is set, :mdays, :days, or :months are ignored.
+
+
+==== view 'CMD "%s"'
+Use this shell command to view the output (usually a HTML file).
+%s will be replaced with the filename.
+
+w3m is used by default.
+
+Example:
+  view 'gnome-open "%s"' # Gnome Desktop
+  view 'kfmclient "%s"'  # KDE
+  view 'cygstart "%s"'   # Cygwin
+  view 'start "%s"'      # Windows
+  view 'firefox "%s"'
+
+
+=== Shortcuts for use with :use, :download and other options
+<tt>:w3m</tt>::
+  Use w3m for downloading the source. Use diff for generating diffs.
+
+<tt>:lynx</tt>::
+  Use lynx for downloading the source. Use diff for generating diffs.
+  Lynx doesn't try to recreate the layout of a page like w3m or links 
+  do. As a result the output IMHO sometimes deviates from the original 
+  design but is better suited for being post-processed in some 
+  situation.
+
+<tt>:links</tt>::
+  Use links for downloading the source. Use diff for generating diffs.
+
+<tt>:curl</tt>::
+  Use curl for downloading the source. Use webdiff for generating diffs.
+
+<tt>:wget</tt>::
+  Use wget for downloading the source. Use webdiff for generating diffs.
+
+<tt>:openuri</tt>::
+  Use open-uri for downloading the source. Use webdiff for generating 
+  diffs. This doesn't handle cookies and the like.
+
+<tt>:mechanize</tt>::
+  Use mechanize (must be installed) for downloading the source. Use 
+  webdiff for generating diffs. This calls the URL's :mechanize property 
+  (a lambda that takes 3 arguments: URL, agent, page => HTML as string) 
+  to post-process the page (or if not available, use the page body's 
+  HTML).
+
+<tt>:text</tt>::
+  This requires hpricot to be installed. Use open-uri for downloading 
+  and hpricot for converting HTML to plain text. This still requires 
+  diff as external helper.
+
+<tt>:body_html</tt>::
+  This requires hpricot to be installed. Use open-uri for downloading 
+  the source, use only the body. Use webdiff for generating diffs. Try 
+  to rewrite references (a, img) so that the point to the webpage. By 
+  default, this will also strip tags like script, form, object ...
+
+<tt>:website</tt>::
+  Use :body_html to download the source. Follow all links referring to 
+  the same host with the same file suffix. Use webdiff for generating 
+  diff.
+
+<tt>:website_below</tt>::
+  Use :body_html to download the source. Follow all links referring to 
+  the same host and a file below the top directory with the same file 
+  suffix. Use webdiff for generating diff.
+
+<tt>:website_txt</tt>::
+  Use :website to download the source but convert the output to plain 
+  text.
+
+<tt>:website_txt_below</tt>::
+  Use :website_below to download the source but convert the output to 
+  plain text.
+
+<tt>:rss</tt>::
+  Download an rss feed, show changed items.
+
+<tt>:opml</tt>::
+  Experimental. Download the rss feeds registered in opml. No support 
+  for atom yet. 
+
+<tt>:img</tt>::
+  Download an image and display it in the output if it has changed 
+  (according to diff). You can use hpricot to extract an image from a 
+  HTML source. Example:
+
+Any shortcuts relying on :body_html will also try to rewrite any 
+references so that the links point to the webpage.
+
+
+
+=== Example configuration file for demonstration purposes
+
+  # Daily
+  set :days => 1
+  
+  # Use lynx instead of the default downloader (w3m).
+  source 'http://www.example.com', :days => 7, :download => :lynx
+  
+  # Use the HTML body and process via webdiff.
+  source 'http://www.example.com', :use => :body_html,
+    :downloadprocess => lambda {|text| Hpricot(text).at('div#content').inner_html}
+  
+  # Download a podcast
+  source 'http://www.example.com/podcast.xml', :title => 'Podcast',
+    :use => :rss,
+    :rss_enclosure => '/home/me/podcasts/example'
+  
+  # Check a rss feed.
+  source 'http://www.example.com/news.xml', :title => 'News', :use => :rss
+  
+  # Get rss feed info from an opml file (EXPERIMENTAL).
+  # @cfgdir is most likely '~/.websitary'.
+ source File.join(@cfgdir, 'news.opml'), :use => :opml
+  
+  
+  # Weekly
+  set :days => 7
+  
+  # Consider the page body only from the 10th line downwards.
+  source 'http://www.example.com', :lines => 10..-1, :title => 'My Page'
+  
+  
+  # Bi-weekly
+  set :days => 14
+  
+  # Use these urls with the default options.
+  source <<URLS
+  http://www.example.com
+  http://www.example.com/page.html
+  URLS
+  
+  # Make HTML diffs and highlight occurences of a word
+  source 'http://www.example.com',
+    :title => 'Example',
+    :use => :body_html,
+    :diffprocess => highlighter(/word/i)
+  
+  # Download the whole website below this path (only pages with 
+  # html-suffix), wait 30 secs between downloads.
+  # Download only php and html pages
+  # Follow links 2 levels deep
+  source 'http://www.example.com/foo/bar.html',
+    :title => 'Example -- Bar',
+    :use => :website_below, :sleep => 30,
+    :match => /\.(php|html)\b/, :depth => 2
+  
+  # Download images from some kind of daily-image site (check the user 
+  # agreement first, if this is allowed). This may require some ruby 
+  # hacking in order to extract the right url.
+  source 'http://www.example.com/daily_image/', :title => 'Daily Image',
+    :use => :img,
+    :download => lambda {|url|
+      rv = nil
+      # Read the HTML.
+      html = open(url) {|io| io.read}
+      # This check is probably unnecessary as the failure to read 
+      # the HTML document would most likely result in an 
+      # exception.
+      if html
+        # Parse the HTML document.
+        doc = Hpricot(html)
+        # The following could actually be simplified using xpath 
+        # or css search expressions. This isn't the most elegant 
+        # solution but it works with any value of ALT.
+        # This downloads the image <img src="..." alt="Current Image">
+        # Check all img tags in the HTML document.
+        for e in doc.search(%{//img})
+          # Is this the image we're looking for?
+          if e['alt'] == "Current Image"
+            # Make relative urls absolute
+            img = rewrite_href(e['src'], url)
+            # Get the actual image data
+            rv = open(img, 'rb') {|io| io.read}
+            # Exit the for loop
+            break
+          end
+        end
+        rv
+      end
+    }
+  
+  
+  unset :days
+
+
+
+=== Commands for use with the -e command-line option
+Most of these commands require you to name a profile on the command 
+line. You can define default profiles with the "default" configuration 
+command.
+
+If no command is given, "downdiff" is executed.
+
+add::
+    Add the URLs given on the command line to the quicklist profile. 
+    ATTENTION: The following arguments on the command line are URLs, not 
+    profile names.
+
+aggregate::
+    Retrieve information and save changes for later review.
+
+configuration::
+    Show the fully qualified configuration of each source.
+
+downdiff::
+    Download and show differences (DEFAULT)
+
+edit::
+    Edit the profile given on the command line (use vi by default)
+
+latest::
+    Show the latest copies of the sources from the profiles given 
+    on the command line.
+
+ls::
+    List number of aggregated diffs.
+
+rebuild::
+    Rebuild the latest report.
+
+review::
+    Review the latest report (just show it with the browser)
+
+show::
+    Show previously aggregated items. A typical use would be to 
+    periodically run in the background a command like
+        websitary -eaggregate newsfeeds
+    and then
+        websitary -eshow newsfeeds
+    to review the changes.
+
+unroll::
+    Undo the latest fetch.
+
+
+
+== TIPS:
+=== Ruby
+The profiles are regular ruby sources that are evaluated in the context 
+of the configuration object (Websitary::Configuration). Find out more 
+about ruby at:
+* http://www.ruby-lang.org/en/documentation/
+* http://www.ruby-doc.org/docs/ProgrammingRuby/ (especially 
+  the 
+  language[http://www.ruby-doc.org/docs/ProgrammingRuby/html/language.html] 
+  chapter)
+
+
+=== Cygwin
+Mixing native Windows apps and cygwin apps can cause problems. The 
+following settings (e.g. in ~/.websitary/config.rb) can be used to use 
+a native Windows editor and browser:
+
+  # Use the default Windows programs (as if double-clicked)
+  view '/usr/bin/cygstart "%s"'
+  
+  # Translate the profile filename and edit it with a native Windows editor
+  edit 'notepad.exe $(cygpath -w -- "%s")'
+  
+  # Rewrite cygwin filenames for use with a native Windows browser
+  option :global, :file_url => lambda {|f| f.sub(/\/cygdrive\/.+?\/.websitary\//, '')}
+
+
+=== Windows
+Backslashes usually have to be escaped by backslashes -- or use slashes. 
+I.e. instead of 'c:\foo\bar' write either 'c:\\foo\\bar' or 
+'c:/foo/bar'.
+
+
+== REQUIREMENTS:
+websitary is a ruby-based application. You thus need a ruby 
+interpreter.
+
+It depends on how you use websitary whether you actually need the 
+following libraries, applications.
+
+By default this script expects the following applications to be 
+present:
+
+* diff
+* vi (or some other editor)
+
+and one of:
+
+* w3m[http://w3m.sourceforge.net/] (default)
+* lynx[http://lynx.isc.org/]
+* links[http://links.twibright.com/]
+
+The use of :websec_webdiff as :diff application requires 
+websec[http://baruch.ev-en.org/proj/websec/] (or at 
+Savannah[http://savannah.nongnu.org/projects/websec/]) to be installed. 
+By default, websitary uses it's own htmldiff class/script, which is less 
+well tested and may return inferior results in comparison with websec's 
+webdiff. In conjunction with :body_html, :openuri, or :curl, this will 
+give you colored HTML diffs.
+
+For downloading HTML, you need one of these:
+
+* open-uri (should be part of ruby)
+* hpricot[http://code.whytheluckystiff.net/hpricot] (used e.g. by 
+  :body_html, :website, and :website_below)
+* curl[http://curl.haxx.se/]
+* wget[http://www.gnu.org/software/wget/]
+
+The following ruby libraries are needed in conjunction with :body_html 
+and :website related shortcuts:
+
+* hpricot[http://code.whytheluckystiff.net/hpricot] (parse HTML, use 
+  only the body etc.)
+* robot_rules.rb[http://blade.nagaokaut.ac.jp/cgi-bin/scat.rb/ruby/ruby-talk/177589] 
+  for parsing robots.txt
+
+I personally would suggest to choose the following setup:
+
+* w3m[http://w3m.sourceforge.net/]
+* hpricot[http://code.whytheluckystiff.net/hpricot]
+* robot_rules.rb[http://blade.nagaokaut.ac.jp/cgi-bin/scat.rb/ruby/ruby-talk/177589]
+
+
+== INSTALL:
+=== Use rubygems
+Run
+
+    gem install websitary
+
+This will download the package and install it.
+
+
+=== Use the zip
+The zip[http://rubyforge.org/frs/?group_id=4030] contains a file 
+setup.rb that does the work. Run
+
+    ruby setup.rb
+
+
+=== Initial Configuration
+Please check the requirements section above and get the extra libraries 
+needed:
+* hpricot
+* robot_rules.rb
+
+These could be installed by:
+
+  # Install hpricot
+  gem install hpricot
+  
+  # Install robot_rules.rb
+  wget http://www.rubyquiz.com/quiz64_sols.zip
+  # Check the correct path to site_ruby first!
+  unzip -p quiz64_sols.zip "solutions/James Edward Gray II/robot_rules.rb" > /lib/ruby/site_ruby/1.8/robot_rules.rb
+  rm quiz64_sols.zip
+
+You might then want to create a profile ~/.websitary/config.rb that is 
+loaded on every run. In this profile you could set the default output 
+viewer and profile editor, as well as a default profile.
+
+Example:
+
+  # Load standard.rb if no profile is given on the command line.
+  default 'standard'
+  
+  # Use cygwin's cygstart to view the output with the default HTML 
+  # viewer
+  view '/usr/bin/cygstart "%s"'
+  
+  # Use Windows gvim from cygwin ruby which is why we convert the path 
+  # first
+  edit 'gvim $(cygpath -w -- "%s")'
+
+Where these configuration files reside, may differ. If the environment 
+variable $HOME is defined, the default is $HOME/.websitary/ unless one 
+of the following directories exist, which will then be used instead:
+
+* $USERPROFILE/websitary (on Windows)
+* SYSCONFDIR/websitary (where SYSCONFDIR usually is /etc but you can 
+  run ruby to find out more:
+  <tt>ruby -e "p Config::CONFIG['sysconfdir']"</tt>)
+
+If neither directory exists and no $HOME variable is defined, the 
+current directory will be used.
+
+Now check out the configuration commands in the Synopsis section.
+
+
+== LICENSE:
+websitary Webpage Monitor
+Copyright (C) 2007-2008 Thomas Link
+
+This program is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  
+USA
+

@@ -1,0 +1,112 @@
+= 0.6
+
+* RSS attachments: Source title is preferred to the channel's title.
+* body_html: If there is no body tag, use the document as is.
+* rss: also scan items without descriptions with :rss_find_enclosure
+
+= 0.5
+
+* mailto: and javascript: hrefs are now handled via the exclude option
+* rewrite absolute URLs sans host correctly
+* strip href and image src tags in order to prevent parser errors
+* some scaffolding for mechanize
+* global proxy option (currently only used for mechanize)
+* use -nolist for lynx
+* catch errors in Websitary::App#execute_downdiff
+* :rss_find_enclosure => LAMBDA: Extract the enclosure URL from the item 
+  description
+* :rss_format_local_copy => STRING|BLOCK/2: Format the display of the 
+  local copy.
+
+
+= 0.4
+
+* Sources may have a :timeout option.
+* exclude: Argument can be a string or a regexp.
+* htmldiff: :ignore option to exclude certain nodes from the diff.
+* Left-mouse clicks make items collapse/expand.
+* iconv: Support for converting encodings (require the per-url iconv 
+  option to be set).
+* exclude mailto urls.
+
+
+= 0.3
+
+* Renamed the global option :downloadhtml to :download_html.
+* The downloader for robots and rss enclosures should now be properly 
+  configurable via the global options :download_robots and 
+  :download_rss_enclosure (default: :openuri).
+* Respect rel="nofollow" on hyperreferences.
+* :wdays, :mdays didn't work.
+* --exclude command line options, exclude configuration command
+* Check for robots.txt-compliance after testing if the URL is 
+  appropriate.
+* htmldiff.rb can now also highlight differences à la websec's webdiff.
+* configuration.rb: Ignore pubDate and certain other non-essential fields (tags 
+  etc.) when constructing rss item IDs.
+
+
+= 0.2.1
+
+* Use URI.merge for constructing robots.txt uri.
+* Fixed minor show-stopper.
+
+
+= 0.2.0
+
+* Renamed the project from websitiary to websitary (without the 
+  additional "i")
+* The default output filename is now constructed on basis of the profile 
+  names joined with a comma.
+* Apply rewrite-rules to URLs in text output.
+* Set user-agent (:body_html)
+* Exit with 1 if differences were found
+* Command line options have slightly changed: -e now is the short form 
+  for --execute
+* Commands that can be triggered by the -e command-line switch: downdiff 
+  (default), configuration (list currently configured urls), latest 
+  (show the current version of all urls), review (show the latest 
+  report)
+* Protect against filenames being too long (max size can be configured 
+  via: <tt>option :global, :filename_size => N</tt>)
+* Try to migrate local copies from the older flat to the new 
+  hierarchical cache layout
+* Disabled -E/--edit, --review command-line options (use -e instead)
+* Try to maintain file atime/mtime when copying/moving files
+* FIX: Problem with loading robots.txt
+* Respect meta tag: robots="nofollow" (noindex is only checked in 
+  conjunction with :download => :website*)
+* quicklist profile: register urls via the -eadd command-line switch; 
+  see "Usage" for an example
+* Temporaly save diffs, so that we can reuse them when websitary should 
+  exit ungracefully.
+* Renamed :inner_html to :body_html
+* New shortcuts: :ftp, :ftp_recursive, :img, :rss, :opml (rudementary)
+* New experimental commands: aggregate, show ... can be used to 
+  periodically check for changes (e.g. of rss feeds) but to review these 
+  changes only once in a while
+* Experimental --timer command-line option to re-run websitary every X 
+  seconds.
+* The :rss differ has an option :rss_enclosure (true or directory name) 
+  that will be used for automatically saving new enclosures (e.g. mp3 
+  files in podcasts); in theory, one should thus be able to use 
+  websitary as pod catcher etc.
+* Cache mtimes in order to reduce disk access.
+* Special profile "__END__": The section in the script file after the 
+  __END__ line. This seems useful in some situations when employing a 
+  single script.
+* Don't follow javascript links.
+* New date constraint for sources:
+      :daily => true ... Once a day
+      :days_of_month => BEGIN..END ... download URL only once per month 
+      within this range of days.
+      :days_of_week => BEGIN..END ... download URL only once per week 
+      within this range of days.
+      :months => N (calculated on basis of  the calendar month, not the 
+      number of days)
+
+
+== 0.1.0 / 2007-07-16
+
+* Initial release
+

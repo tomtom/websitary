@@ -1,0 +1,30 @@
+% #VAR: css=tabbar-top.css|screen, +serif.css
+% #VAR: tabBarPos=top tabEqualWidths! noTabBarButtons!
+
+#VAR: css=tabbar-right.css|screen, article.css|print, +serif.css
+#VAR: autoindex! buttonsColour=blue buttonsHighlight!
+#VAR: encoding=latin-1
+
+#VAR: tabBarHomeName=OVERVIEW:
+#VAR: headings=plain autoFileNames!
+#VAR: urlIcon=remote.png mailtoIcon=mailto.png markerInFrontOfURL!
+#VAR: baseUrl=http://websitiary.rubyforge.org/ baseUrlStripDir=1
+#VAR: levelshift=-1 codeSyntax=ruby codeStyle=tomacs
+#Var id=tabBar <<--
+[auto]
+API: | http://websitiary.rubyforge.org/websitary/
+--
+
+#TITLE:  websitary
+#AUTHOR: Thomas Link
+% #DATE:   today
+#MAKETITLE
+#LIST plain! max=2: contents
+
+#INC inputFormat=rdoc: README.txt
+
+
+% 2007-09-01; @Last Change: 2007-09-16.
+% vi: ft=viki:tw=72:ts=4
+% Local Variables:
+% End:

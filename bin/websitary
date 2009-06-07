@@ -1,0 +1,43 @@
+#! /usr/bin/env ruby
+# websitary.rb -- The website news, rss feed, podcast catching monitor
+# @Last Change: 2008-02-12.
+# Author::      Thomas Link (micathom at gmail com)
+# License::     GPL (see http://www.gnu.org/licenses/gpl.txt)
+# Created::     2007-06-09.
+
+
+require 'websitary'
+
+
+if __FILE__ == $0
+    w = Websitary::App.new(ARGV)
+    t = w.configuration.optval_get(:global, :timer)
+    if t
+        exit_code = 0
+        while exit_code <= 1
+            exit_code = Websitary::App.new(ARGV).process
+            case t
+            when Numeric
+                $logger.info "Sleep: #{t}s"
+                sleep t
+            when Proc
+                t.call
+            else
+                $logger.fatal "Malformed timer: #{t}"
+                exit_code = 5
+                break
+            end
+        end
+    else
+        exit_code = w.process
+    end
+    exit exit_code
+    # sleep 5
+end
+
+
+
+# vi: ft=ruby:tw=72:ts=2:sw=4
+# Local Variables:
+# revisionRx: REVISION\s\+=\s\+\'
+# End:
