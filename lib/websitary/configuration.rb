@@ -118,6 +118,10 @@ class Websitary::Configuration
                 output_file(value)
             end
 
+            opts.on('--purge=N', Integer, 'Remove files older than N (default = 365) days from the cache (requires the unix find utility)') do |value|
+                global(:purge => value)
+            end
+
             opts.on('-s', '--set=NAME=VAR', String, 'Set a default option') do |value|
                 key, val = value.split(/=/, 2)
                 set key.intern => eval(val)

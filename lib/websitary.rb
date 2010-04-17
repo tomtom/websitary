@@ -1,5 +1,5 @@
 # websitary.rb
-# @Last Change: 2008-03-11.
+# @Last Change: 2010-03-01.
 # Author::      Thomas Link (micathom AT gmail com)
 # License::     GPL (see http://www.gnu.org/licenses/gpl.txt)
 # Created::     2007-09-08.
@@ -184,6 +184,26 @@ class Websitary::App
     # Rebuild the report from the already downloaded copies.
     def execute_rebuild
         execute_downdiff(true, true)
+    end
+
+
+    def execute_purge
+        days = @configuration.optval_get(:global, :purge, 365)
+        $logger.warn "Purge files older than #{days} days"
+        dirs = []
+        dirs << File.join(@configuration.cfgdir, 'latest')
+        dirs << File.join(@configuration.cfgdir, 'old')
+        for d in dirs
+            $logger.info "find #{d.gsub(/[ \\]/, '\\\\\\0')} -mtime +#{days} -type f -print -delete"
+            `find #{d.gsub(/[ \\]/, '\\\\\\0')} -mtime +#{days} -type f -print -delete`
+            for d1 in `find #{d.gsub(/[ \\]/, '\\\\\\0')} -type d`.split(/\n/).reverse
+                if `find #{d1.gsub(/[ \\]/, '\\\\\\0')} -type f`.empty?
+                    $logger.warn "Delete #{d1}"
+                    Dir.delete(d1)
+                end
+            end
+        end
+        return 0
     end
 
 
@@ -457,6 +477,7 @@ class Websitary::App
             tl = @configuration.mtimes.mtime(latest)
             td = tn - tl
             tdiff = tdiff_with(opts, tn, tl)
+            $logger.debug "skip_url? url=#{url}, tdiff=#{tdiff}"
             case tdiff
             when nil, false
                 $logger.debug "Age requirement fulfilled: #{@configuration.url_get(url, :title, url).inspect}: #{format_tdiff(td)} old"
