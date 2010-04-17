@@ -1,5 +1,5 @@
 # applog.rb
-# @Last Change: 2007-09-11.
+# @Last Change: 2010-01-09.
 # Author::      Thomas Link (micathom AT gmail com)
 # License::     GPL (see http://www.gnu.org/licenses/gpl.txt)
 # Created::     2007-09-08.

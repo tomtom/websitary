@@ -1,5 +1,5 @@
 # configuration.rb
-# @Last Change: 2009-05-25.
+# @Last Change: 2010-04-16.
 # Author::      Thomas Link (micathom AT gmail com)
 # License::     GPL (see http://www.gnu.org/licenses/gpl.txt)
 # Created::     2007-09-08.
@@ -812,12 +812,17 @@ HTML
         case dir
         when true
             title = url_get(url, :title) || encode(title)
-            dir = File.join(@cfgdir, 'attachments', title)
+            dir = attachment_dir(url, title)
         when Proc
             dir = dir.call(url)
         end
         @app.ensure_dir(dir) if dir
         return dir
+    end
+
+
+    def attachment_dir(url, title)
+        File.join(url_get(url, :attachments) || File.join(@cfgdir, 'attachments'), title)
     end
 
 
@@ -1052,6 +1057,7 @@ HTML
 
 
     def write_file(filename, mode='w', &block)
+        @app.ensure_dir(File.dirname(filename))
         File.open(filename, mode) {|io| block.call(io)}
         @mtimes.set(filename)
     end
@@ -1241,15 +1247,23 @@ HTML
                     ro.items.each do |item|
                         rh[rss_item_id(item)] = item
                         rh[item.link] = item
+                        rh[item.guid] = item if item.guid
                     end
                     rnew = []
                     rn = RSS::Parser.parse(File.read(new), false)
                     if rn
                         rn.items.each do |item|
                             rid = rss_item_id(item)
+                            $logger.debug "rid = #{rid}"
+                            $logger.debug "rh[rid] = #{rh[rid]}"
                             if !rh[rid]
                                 idesc = item.description || ''
-                                if (olditem = rh[item.link])
+                                $logger.debug "idesc = #{idesc}"
+                                $logger.debug "item.link = #{item.link}"
+                                $logger.debug "item.guid = #{item.guid}"
+                                $logger.debug "olditem = rh[item.link] = #{rh[item.link]}"
+                                olditem = item.guid ? rh[item.guid] : rh[item.link]
+                                if olditem
                                     odesc = olditem.description || ''
                                     rss_diff = Websitary::Htmldiff.new(:highlight => 'highlight', :oldtext => odesc, :newtext => idesc).process
                                     rnew << format_rss_item(item, rss_diff)
@@ -1266,20 +1280,29 @@ HTML
                                                 def enc.url
                                                     self
                                                 end
+                                                $logger.debug "Embedded enclosure: #{enc}"
+                                                $logger.info "Embedded enclosure url: #{enc.url}"
                                             else
-                                                $logger.warn "No embedded enclosure URL found: #{idesc}"
+                                                $logger.info "No embedded enclosure URL found: #{idesc}"
                                             end
                                         end
                                     end
+                                    $logger.info "Enclosure: #{enc}"
                                     if enc and (curl = clean_url(enc.url))
                                         dir   = url_get(url, :rss_enclosure)
                                         curl  = rewrite_href(curl, url, nil, nil, true)
                                         next unless curl
                                         if dir
+                                            $logger.debug "Enclosure basedir: #{dir}"
                                             dir = save_dir(url, dir, encode(rn.channel.title))
+                                            $logger.debug "Enclosure dir: #{dir}"
                                             $logger.info "Enclosure: #{curl}"
-                                            fname = File.join(dir, encode(File.basename(curl) || item.title || item.pubDate.to_s || Time.now.to_s))
-                                            $logger.debug "Save enclosure: #{fname}"
+                                            fpath = [dir]
+                                            year = url_get(url, :year)
+                                            fpath << year.to_s if year
+                                            fpath << encode(File.basename(curl) || item.title || item.pubDate.to_s || Time.now.to_s)
+                                            fname = File.join(*fpath)
+                                            $logger.warn "Save enclosure: #{fname}"
                                             enc   = read_url(curl, 'rss_enclosure')
                                             write_file(fname, 'wb') {|io| io.puts enc}
                                             furl = file_url(fname)
