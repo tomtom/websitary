@@ -489,11 +489,14 @@ class Websitary::Configuration
         enc = url_get(url, :iconv)
         if enc
             denc = optval_get(:global, :encoding)
-            begin
-                require 'iconv'
-                text = Iconv.conv(denc, enc, text)
-            rescue Exception => e
-                $logger.error "IConv failed #{enc} => #{denc}: #{e}"
+            if enc != denc
+                begin
+                    require 'iconv'
+                    $logger.debug "IConv convert #{url}: #{enc} => #{denc}"
+                    text = Iconv.conv(denc, enc, text)
+                rescue Exception => e
+                    $logger.error "IConv failed #{enc} => #{denc}: #{e}"
+                end
             end
         end
         return text
@@ -1064,7 +1067,7 @@ HTML
         @options = {
             :global => {
                 :download_html => :openuri,
-                :encoding => 'ISO-8859-1',
+                :encoding => 'UTF-8',
                 :toggle_body => false,
                 :user_agent => "websitary/#{Websitary::VERSION}",
             },
@@ -1157,19 +1160,20 @@ HTML
 
         shortcut :w3m, :delegate => :diff,
             :download => 'w3m -S -F -dump "%s"'
+            # :download => 'w3m -S -F -dump "%s" | iconv -t UTF-8'
             # :download => 'w3m -no-cookie -S -F -dump "%s"'
 
         shortcut :lynx, :delegate => :diff,
-            :download => 'lynx -dump -nolist "%s"'
+            :download => 'lynx -dump -nolist "%s" | iconv -t UTF-8'
 
         shortcut :links, :delegate => :diff,
-            :download => 'links -dump "%s"'
+            :download => 'links -dump "%s" | iconv -t UTF-8'
 
         shortcut :curl, :delegate => :webdiff,
-            :download => 'curl --silent "%s"'
+            :download => 'curl --silent "%s" | iconv -t UTF-8'
 
         shortcut :wget, :delegate => :webdiff,
-            :download => 'wget -q -O - "%s"'
+            :download => 'wget -q -O - "%s" | iconv -t UTF-8'
 
         shortcut :text, :delegate => :diff,
             :download => lambda {|url| doc_to_text(read_document(url))}
