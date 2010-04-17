@@ -1,5 +1,5 @@
 # websitary.rb
-# @Last Change: 2010-03-01.
+# @Last Change: 2010-04-17.
 # Author::      Thomas Link (micathom AT gmail com)
 # License::     GPL (see http://www.gnu.org/licenses/gpl.txt)
 # Created::     2007-09-08.
@@ -34,7 +34,7 @@ end
 
 module Websitary
     APPNAME     = 'websitary'
-    VERSION     = '0.5'
+    VERSION     = '0.6'
     REVISION    = '2476'
 end
 
