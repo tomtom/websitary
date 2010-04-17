@@ -21,10 +21,10 @@ API: | http://websitiary.rubyforge.org/websitary/
 #MAKETITLE
 #LIST plain! max=2: contents
 
-#INC inputFormat=rdoc: README.txt
+#INC inputFormat=rdoc: README.rdoc
 
 
-% 2007-09-01; @Last Change: 2007-09-16.
+% 2007-09-01; @Last Change: 2010-04-17.
 % vi: ft=viki:tw=72:ts=4
 % Local Variables:
 % End:

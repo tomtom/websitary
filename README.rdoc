@@ -1,11 +1,13 @@
 websitary by Thomas Link
 http://rubyforge.org/projects/websitiary/
 
-This script monitors webpages, rss feeds, podcasts etc. and reports 
-what's new. For many tasks, it reuses other programs to do the actual 
-work. By default, it works on an ASCII basis, i.e. with the output of 
-text-based webbrowsers. With the help of some friends, it works also 
-with HTML.
+This ruby-based script monitors webpages, rss feeds, podcasts etc. and 
+reports what's new. It reuses other programs to do the actual work. By 
+default, it works on an ASCII basis, i.e. it runs diff on the output of 
+text-based webbrowsers like w3m, lynx, or links. With the help of some 
+friends, it works also with HTML. Maybe it of help for some of you.
+
+Please see the requirements section below.
 
 
 == DESCRIPTION:
