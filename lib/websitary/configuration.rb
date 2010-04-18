@@ -755,7 +755,8 @@ HTML
     def encoded_filename(dir, url, ensure_dir=false, type=nil)
         type ||= url_get(url, :cachetype, 'tree')
         $logger.debug "encoded_filename: type=#{type} url=#{url}"
-        rv = File.join(@cfgdir, dir, encoded_basename(url, type))
+        basename = url_get(url, :filename, encoded_basename(url, type))
+        rv = File.join(@cfgdir, dir, basename)
         rd = File.dirname(rv)
         $logger.debug "encoded_filename: rv0=#{rv}"
         fm = optval_get(:global, :filename_size, 255)
