@@ -1,9 +1,10 @@
 # configuration.rb
-# @Last Change: 2010-04-16.
+# @Last Change: 2010-04-18.
 # Author::      Thomas Link (micathom AT gmail com)
 # License::     GPL (see http://www.gnu.org/licenses/gpl.txt)
 # Created::     2007-09-08.
 
+require 'iconv'
 
 
 # This class defines the scope in which profiles are evaluated. Most 
@@ -485,13 +486,12 @@ class Websitary::Configuration
     end
 
 
-    def format_text(url, text)
-        enc = url_get(url, :iconv)
+    def format_text(url, text, enc = nil)
+        enc ||= url_get(url, :iconv)
         if enc
             denc = optval_get(:global, :encoding)
             if enc != denc
                 begin
-                    require 'iconv'
                     $logger.debug "IConv convert #{url}: #{enc} => #{denc}"
                     text = Iconv.conv(denc, enc, text)
                 rescue Exception => e
@@ -657,6 +657,12 @@ class Websitary::Configuration
     end
 
 
+    def get_title(url)
+        text = url_get(url, :title, File.basename(url))
+        format_text(url, text, optval_get(:global, :config_encoding, optval_get(:global, :encoding)))
+    end
+
+
     def get_output_html(difftext)
         difftext = difftext.map do |url, text|
             tags = url_get(url, :strip_tags)
@@ -667,7 +673,7 @@ class Websitary::Configuration
         sort_difftext!(difftext)
 
         toc = difftext.map do |url, text|
-            ti  = url_get(url, :title, File.basename(url))
+            ti  = get_title(url)
             tid = html_toc_id(url)
             bid = html_body_id(url)
             %{<li id="#{tid}" class="toc"><a class="toc" href="\##{bid}">#{ti}</a></li>}
@@ -676,7 +682,7 @@ class Websitary::Configuration
         idx = 0
         cnt = difftext.map do |url, text|
             idx += 1
-            ti   = url_get(url, :title, File.basename(url))
+            ti   = get_title(url)
             bid  = html_body_id(url)
             if (rewrite = url_get(url, :rewrite_link))
                 urlr = eval_arg(rewrite, [url])
