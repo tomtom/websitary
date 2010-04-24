@@ -1092,7 +1092,7 @@ HTML
             :diff => lambda {|old, new, *args|
                 opts, _  = args
                 opts   ||= '-d -w'
-                difftext = call_cmd('diff %s -u2 "%s" "%s"', [opts, old, new])
+                difftext = call_cmd('diff %s -U 2 "%s" "%s"', [opts, old, new])
                 difftext = difftext.split("\n")[2..-1]
                 difftext ? difftext.delete_if {|l| l =~ /^[^+]/}.map {|l| l[1..-1]}.join("\n") : ''
             },
