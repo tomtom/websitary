@@ -1,5 +1,5 @@
 # configuration.rb
-# @Last Change: 2010-04-18.
+# @Last Change: 2010-04-24.
 # Author::      Thomas Link (micathom AT gmail com)
 # License::     GPL (see http://www.gnu.org/licenses/gpl.txt)
 # Created::     2007-09-08.
@@ -39,7 +39,7 @@ class Websitary::Configuration
             ENV['USERPROFILE'] && File.join(ENV['USERPROFILE'], 'websitary'),
             File.join(Config::CONFIG['sysconfdir'], 'websitary')
         ].each do |dir|
-            if File.exists?(dir)
+            if dir and File.exists?(dir)
                 @cfgdir = dir
                 break
             end
