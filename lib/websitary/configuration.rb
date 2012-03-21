@@ -1,5 +1,5 @@
 # configuration.rb
-# @Last Change: 2010-04-24.
+# @Last Change: 2012-03-21.
 # Author::      Thomas Link (micathom AT gmail com)
 # License::     GPL (see http://www.gnu.org/licenses/gpl.txt)
 # Created::     2007-09-08.
@@ -352,7 +352,7 @@ class Websitary::Configuration
 
 
     def is_excluded?(url)
-        rv = @exclude.any? {|p| url =~ p}
+        rv = url_get(url, :exclude, []).any? {|p| url =~ p} || @exclude.any? {|p| url =~ p}
         $logger.debug "is_excluded: #{url}: #{rv}"
         rv
     end
@@ -659,7 +659,9 @@ class Websitary::Configuration
 
     def get_title(url)
         text = url_get(url, :title, File.basename(url))
-        format_text(url, text, optval_get(:global, :config_encoding, optval_get(:global, :encoding)))
+        enc = optval_get(:global, :config_encoding, optval_get(:global, :encoding))
+        $logger.debug "Title encoding: #{enc}: #{text}"
+        format_text(url, text, enc)
     end
 
 
@@ -1941,9 +1943,14 @@ EOT
 
     def sort_difftext!(difftext)
         difftext.sort! do |a, b|
-            aa = a[0]
-            bb = b[0]
-            url_get(aa, :title, aa).downcase <=> url_get(bb, :title, bb).downcase
+            aa = a[0] || ''
+            bb = b[0] || ''
+            ua = url_get(aa, :title, aa) || aa
+            ub = url_get(bb, :title, bb) || bb
+            if ua.nil? or ub.nil?
+                $logger.warn "DEBUG sort_difftext!: #{a} #{aa} #{ua}, #{b} #{bb} #{ub}"
+            end
+            ua.downcase <=> ub.downcase
         end
     end
 
