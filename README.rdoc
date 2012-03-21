@@ -295,12 +295,12 @@ Options
 <tt>:hours => HOURS, :days => DAYS</tt>::
   Don't download the file unless it's older than that
 
-<tt>:days_of_month => DAY..DAY, :wdays => DAY..DAY</tt>::
+<tt>:days_of_month => DAY..DAY, :mdays => DAY..DAY</tt>::
   Download only once per month within a certain range of days (e.g., 
   15..31 ... Check once after the 15th). The argument can also be an 
   array (e.g, [1, 15]) or an integer.
 
-<tt>:days_of_week => DAY..DAY, :mdays => DAY..DAY</tt>::
+<tt>:days_of_week => DAY..DAY, :wdays => DAY..DAY</tt>::
   Download only once per week within a certain range of days (e.g., 1..2 
   ... Check once on monday or tuesday; sunday = 0). The argument can 
   also be an array (e.g, [1, 15]) or an integer.
