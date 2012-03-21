@@ -1255,7 +1255,7 @@ HTML
                     ro.items.each do |item|
                         rh[rss_item_id(item)] = item
                         rh[item.link] = item
-                        rh[item.guid] = item if item.guid
+                        rh[item.guid] = item if item.guid rescue Exception
                     end
                     rnew = []
                     rn = RSS::Parser.parse(File.read(new), false)
@@ -1265,14 +1265,20 @@ HTML
                             $logger.debug "rid = #{rid}"
                             $logger.debug "rh[rid] = #{rh[rid]}"
                             if !rh[rid]
-                                idesc = item.description || ''
+                                idesc = rss_item_description(item)
+                                ilink = rss_item_link(item)
+                                begin
+                                    iguid = item.guid
+                                rescue Exception
+                                    iguid = nil
+                                end
                                 $logger.debug "idesc = #{idesc}"
-                                $logger.debug "item.link = #{item.link}"
-                                $logger.debug "item.guid = #{item.guid}"
-                                $logger.debug "olditem = rh[item.link] = #{rh[item.link]}"
-                                olditem = item.guid ? rh[item.guid] : rh[item.link]
+                                $logger.debug "item.link = #{ilink}"
+                                $logger.debug "item.guid = #{iguid}"
+                                $logger.debug "olditem = rh[item.link] = #{rh[ilink]}"
+                                olditem = iguid ? rh[iguid] : rh[ilink]
                                 if olditem
-                                    odesc = olditem.description || ''
+                                    odesc = rss_item_description(olditem)
                                     rss_diff = Websitary::Htmldiff.new(:highlight => 'highlight', :oldtext => odesc, :newtext => idesc).process
                                     rnew << format_rss_item(item, rss_diff)
                                 else
@@ -1280,7 +1286,7 @@ HTML
                                     url = url_from_filename(new)
                                     # if !enc and item.description
                                     if !enc
-                                        ddoc = Hpricot(idesc)
+                                        ddoc = Document(idesc)
                                         scanner = url_get(url, :rss_find_enclosure)
                                         if scanner
                                             enc  = scanner.call(item, ddoc)
@@ -1308,7 +1314,7 @@ HTML
                                             fpath = [dir]
                                             year = url_get(url, :year)
                                             fpath << year.to_s if year
-                                            fpath << encode(File.basename(curl) || item.title || item.pubDate.to_s || Time.now.to_s)
+                                            fpath << encode(File.basename(curl) || item.title || rss_item_date(item) || Time.now.to_s)
                                             fname = File.join(*fpath)
                                             $logger.warn "Save enclosure: #{fname}"
                                             enc   = read_url(curl, 'rss_enclosure')
@@ -1328,7 +1334,7 @@ HTML
                                 end
                             end
                         end
-                        rnew.join("\n")
+                        rnew.reverse.join("\n")
                     end
                 end
             }
@@ -1721,6 +1727,56 @@ CSS
     end
 
 
+    def rss_item_link(item)
+        case item
+        when RSS::Atom::Feed::Entry
+            rv = item.link.href
+        else
+            rv = item.link
+        end
+        return rv || ''
+    end
+
+    def rss_item_description(item)
+        case item
+        when RSS::Atom::Feed::Entry
+            rv = item.summary.content
+        else
+            rv = item.description
+        end
+        return rv || ''
+    end
+
+    def rss_item_date(item)
+        case item
+        when RSS::Atom::Feed::Entry
+            rv = item.published.content
+        else
+            rv = item.pubDate.to_s
+        end
+        return rv || ''
+    end
+
+    def rss_item_title(item)
+        case item
+        when RSS::Atom::Feed::Entry
+            rv = item.title.content
+        else
+            rv = item.title
+        end
+        return rv || ''
+    end
+
+    def rss_item_author(item)
+        case item
+        when RSS::Atom::Feed::Entry
+            rv = item.author.content
+        else
+            rv = item.author
+        end
+        return rv || ''
+    end
+
     def rss_enclosure_local_copy(url, furl)
         t = url_get(url, :rss_format_local_copy) ||
             %{<p class="enclosure"><a href="%s" class="enclosure" />Enclosure (local copy)</a></p>}
@@ -1737,12 +1793,14 @@ CSS
 
 
     def format_rss_item(item, body, enclosure='')
-        ti = rss_field(item, :title)
-        au = rss_field(item, :author)
+        ti = rss_item_title(item)
+        au = rss_item_author(item)
+        li = rss_item_link(item)
+        da = rss_item_date(item)
         hd = [ti]
         hd << " (#{au})" if au
         return <<EOT
-<h2 class="rss"><a class="rss" href="#{rss_field(item, :link)}">#{hd.join} -- #{rss_field(item, :pubDate)}</a></h2>
+<h2 class="rss"><a class="rss" href="#{li}">#{hd.join} -- #{da}</a></h2>
 <div class="rss">
 #{body}
 #{enclosure}
