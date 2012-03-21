@@ -1957,7 +1957,7 @@ EOT
 
 
     def encode(text, chars='')
-        text.gsub(/[^a-zA-Z0-9,._#{chars}-]/) {|t| '%%%02x' % t[0]}
+        text.gsub(/[^a-zA-Z0-9,._#{chars}-]/) {|t| '%%%02x' % t[0].ord}
     end
 
 
