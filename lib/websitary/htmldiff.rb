@@ -1,6 +1,6 @@
 #!/usr/bin/env ruby
 # htmldiff.rb
-# @Last Change: 2007-11-10.
+# @Last Change: 2010-10-25.
 # Author::      Thomas Link (micathom at gmail com)
 # License::     GPL (see http://www.gnu.org/licenses/gpl.txt)
 # Created::     2007-08-17.
@@ -8,7 +8,11 @@
 # == Basic Use
 #   htmldiff OLD NEW [HIGHLIGHT-COLOR] > DIFF
 
-require 'hpricot'
+module Websitary
+end
+
+
+require 'websitary/document'
 
 
 module Websitary
@@ -28,8 +32,8 @@ module Websitary
         def initialize(args)
             @args = args
             @high = args[:highlight] || args[:highlightcolor]
-            @old  = explode(args[:olddoc] || Hpricot(args[:oldtext] || File.read(args[:oldfile])))
-            @new  =         args[:newdoc] || Hpricot(args[:newtext] || File.read(args[:newfile]))
+            @old  = explode(args[:olddoc] || Document(args[:oldtext] || File.read(args[:oldfile])))
+            @new  =         args[:newdoc] || Document(args[:newtext] || File.read(args[:newfile]))
             @ignore  = args[:ignore]
             if @ignore and !@ignore.kind_of?(Enumerable)
                 die "Ignore must be of kind Enumerable: #{ignore.inspect}"
@@ -128,10 +132,10 @@ module Websitary
 
         def replace_inner(child, ihtml)
             case child
-            when Hpricot::Comment
+            when Document::Comment
                 child
-            when Hpricot::Text
-                Hpricot(ihtml)
+            when Document::Text
+                Document(ihtml)
             else
                 child.inner_html = ihtml
                 child

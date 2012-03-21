@@ -854,7 +854,7 @@ HTML
         tags = args[:tags] || strip_tags_default
         case doc
         when String
-            doc = Hpricot(doc)
+            doc = Document(doc)
         end
         tags.each do |tag|
             doc.search(tag).remove
@@ -883,16 +883,16 @@ HTML
 
     # Scan hpricot document for hrefs and push the onto @todo if not 
     # already included.
-    def push_hrefs(url, hpricot, &condition)
+    def push_hrefs(url, document, &condition)
         begin
             $logger.debug "push_refs: #{url}"
-            return if robots?(hpricot, 'nofollow') or is_excluded?(url)
+            return if robots?(document, 'nofollow') or is_excluded?(url)
             depth = url_get(url, :depth)
             return if depth and depth <= 0
             uri0  = URI.parse(url)
             # pn0   = Pathname.new(guess_dir(File.expand_path(uri0.path)))
             pn0   = Pathname.new(guess_dir(uri0.path))
-            (hpricot / 'a').each do |a|
+            (document / 'a').each do |a|
                 next if a['rel'] == 'nofollow'
                 href = clean_url(a['href'])
                 next if href.nil? or href == url or is_excluded?(href)
@@ -924,7 +924,7 @@ HTML
 
     # Rewrite urls in doc
     # url:: String
-    # doc:: Hpricot document
+    # doc:: markup document
     def rewrite_urls(url, doc)
         uri = URI.parse(url)
         urd = guess_dir(uri.path)
@@ -1196,6 +1196,7 @@ HTML
             :download => lambda {|url|
                 begin
                     doc = read_document(url)
+                    # $logger.debug "body_html doc.size: #{doc.class}"
                     body_html(url, doc).to_s
                 rescue Exception => e
                     # $logger.error e  #DBG#
@@ -1336,7 +1337,7 @@ HTML
             :download => lambda {|url|
                 opml = open(url) {|io| io.read}
                 if oplm
-                    xml = Hpricot(opml)
+                    xml = Document(opml)
                     # <+TBD+>Well, maybe would should search for outline[@type=rss]?
                     xml.search('//outline[@xmlurl]').each {|elt|
                         if elt['type'] =~ /rss/
@@ -1649,7 +1650,7 @@ CSS
 
 
     def url_document(url, html)
-        doc = html && Hpricot(html)
+        doc = html && Document(html)
         if doc
             unless url_get(url, :title)
                 ti = (doc / 'head > title').inner_html
@@ -1796,6 +1797,7 @@ EOT
         else
             $logger.warn 'inner html: No body'
         end
+        # $logger.warn "body_html(): #{doc.class}"
         doc
     end
 
@@ -1807,20 +1809,20 @@ EOT
 
     # Convert html to plain text using hpricot.
     def html_to_text(text)
-        text && Hpricot(text).to_plain_text
+        text && Document(text).to_plain_text
     end
 
 
     # Retrieve any robots meta directives from the hpricot document.
-    def robots?(hpricot, *what)
-        meta(hpricot, 'robots').any? do |e|
+    def robots?(document, *what)
+        meta(document, 'robots').any? do |e|
             what.any? {|w| e['content'].split(/,\s*/).include?(w)}
         end
     end
 
 
-    def meta(hpricot, name)
-        hpricot / %{//meta[@name="#{name}"]}
+    def meta(document, name)
+        document / %{//meta[@name="#{name}"]}
     end
 
 

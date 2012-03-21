@@ -1,6 +1,6 @@
 # websitary.rb
-# @Last Change: 2010-04-17.
-# Author::      Thomas Link (micathom AT gmail com)
+# @Last Change: 2010-12-02.
+# Author::      Tom Link (micathom AT gmail com)
 # License::     GPL (see http://www.gnu.org/licenses/gpl.txt)
 # Created::     2007-09-08.
 
@@ -41,6 +41,7 @@ end
 require 'websitary/applog'
 require 'websitary/filemtimes'
 require 'websitary/configuration'
+require 'websitary/document'
 require 'websitary/htmldiff'
 
 
@@ -298,6 +299,7 @@ class Websitary::App
                         difftext = diff(url, opts, latest, older)
                         if difftext
                             @configuration.write_file(diffed, 'wb') {|io| io.puts difftext}
+                            $logger.warn "Save diff with size #{difftext.size} as #{diffed}"
                             # $logger.debug "difftext: #{difftext}" #DBG#
                             if accumulator
                                 accumulator.call(url, difftext, opts)
