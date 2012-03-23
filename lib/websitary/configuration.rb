@@ -1742,7 +1742,8 @@ CSS
     def rss_item_description(item)
         case item
         when RSS::Atom::Feed::Entry
-            rv = item.summary.content
+            rv = item.summary
+            rv = rv.content if rv.respond_to?(:content)
         else
             rv = item.description
         end
@@ -1752,7 +1753,8 @@ CSS
     def rss_item_date(item)
         case item
         when RSS::Atom::Feed::Entry
-            rv = item.published.content
+            rv = item.published
+            rv = rv.content if rv.respond_to?(:content)
         else
             rv = item.pubDate.to_s
         end
@@ -1762,7 +1764,8 @@ CSS
     def rss_item_title(item)
         case item
         when RSS::Atom::Feed::Entry
-            rv = item.title.content
+            rv = item.title
+            rv = rv.content if rv.respond_to?(:content)
         else
             rv = item.title
         end
@@ -1772,7 +1775,8 @@ CSS
     def rss_item_author(item)
         case item
         when RSS::Atom::Feed::Entry
-            rv = item.author.content
+            rv = item.author
+            rv = rv.content if rv.respond_to?(:content)
         else
             rv = item.author
         end
