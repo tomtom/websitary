@@ -1,10 +1,11 @@
 # websitary.rb
-# @Last Change: 2010-12-02.
+# @Last Change: 2012-03-23.
 # Author::      Tom Link (micathom AT gmail com)
 # License::     GPL (see http://www.gnu.org/licenses/gpl.txt)
 # Created::     2007-09-08.
 
 
+require 'rubygems'
 require 'cgi'
 require 'digest/md5'
 # require 'ftools'
