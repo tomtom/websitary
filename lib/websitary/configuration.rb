@@ -1193,6 +1193,9 @@ HTML
         shortcut :text, :delegate => :diff,
             :download => lambda {|url| doc_to_text(read_document(url))}
 
+        shortcut :pdf, :delegate => :diff,
+            :download => 'curl -s "%s" | pdftotext -layout - - | iconv -t UTF-8'
+
         shortcut :body_html, :delegate => :webdiff,
             :strip_tags => :default,
             :download => lambda {|url|
