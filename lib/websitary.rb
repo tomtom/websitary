@@ -421,6 +421,19 @@ class Websitary::App
             text = text.join("\n")
         end
 
+        pick = @configuration.url_get(url, :pick)
+        if pick
+            $logger.debug "pick element: #{pick}"
+            pick_doc = Document(text)
+            begin
+                text0 = pick_doc.at(pick)
+                text = text0.inner_html if text0
+            rescue Exception => e
+                $stderr.puts "Error picking element at #{pick}: #{e.message}"
+            end
+            # $logger.debug text #DBG#
+        end
+
         pprc = @configuration.url_get(url, :downloadprocess)
         if pprc
             $logger.debug "download process: #{pprc}"
