@@ -1,10 +1,8 @@
-# configuration.rb
-# @Last Change: 2012-03-21.
+# @Last Change: 2016-04-08.
 # Author::      Thomas Link (micathom AT gmail com)
 # License::     GPL (see http://www.gnu.org/licenses/gpl.txt)
-# Created::     2007-09-08.
 
-require 'iconv'
+require 'iconv' if RUBY_VERSION < "2.0.0"
 
 
 # This class defines the scope in which profiles are evaluated. Most 
@@ -31,13 +29,18 @@ class Websitary::Configuration
 
 
     def initialize(app, args=[])
+        if RUBY_VERSION >= "2.0.0"
+            @rb_config = ::RbConfig::CONFIG
+        else
+            @rb_config = ::Config::CONFIG
+        end
         @logger = Websitary::AppLog.new
         $logger.debug "Configuration#initialize"
         @app    = app
         @cfgdir = ENV['HOME'] ? File.join(ENV['HOME'], '.websitary') : '.'
         [
             ENV['USERPROFILE'] && File.join(ENV['USERPROFILE'], 'websitary'),
-            File.join(Config::CONFIG['sysconfdir'], 'websitary')
+            File.join(@rb_config['sysconfdir'], 'websitary')
         ].each do |dir|
             if dir and File.exists?(dir)
                 @cfgdir = dir
@@ -418,7 +421,9 @@ class Websitary::Configuration
     # Define a source.
     # urls:: String
     def source(urls, opts={})
-        urls.split("\n").flatten.compact.each do |url|
+        url_sep = opts.has_key?(:url_sep) ? opts[:url_sep] : "\n"
+        urls1 = url_sep.nil? ? [urls] : urls.split(url_sep).flatten
+        urls1.compact.each do |url|
             url_set(url, @default_options.dup.update(opts))
             to_do url
         end
@@ -493,7 +498,11 @@ class Websitary::Configuration
             if enc != denc
                 begin
                     $logger.debug "IConv convert #{url}: #{enc} => #{denc}"
-                    text = Iconv.conv(denc, enc, text)
+                    if RUBY_VERSION >= "2.0.0"
+                        text = text.force_encoding(denc).encode(enc)
+                    else
+                        text = Iconv.conv(denc, enc, text)
+                    end
                 rescue Exception => e
                     $logger.error "IConv failed #{enc} => #{denc}: #{e}"
                 end
@@ -615,8 +624,10 @@ class Websitary::Configuration
             chan        = RSS::Rss::Channel.new
             chan.title  = @output_title
             [:description, :copyright, :category, :language, :image, :webMaster, :pubDate].each do |field|
-                ok, val = opt_get(:rss, field)
-                item.send(format_symbol(field, '%s='), val) if ok
+                if chan.respond_to?(field)
+                    ok, val = opt_get(:rss, field)
+                    chan.send(format_symbol(field, '%s='), val) if ok
+                end
             end
             chan.link   = rss_url
             rss.channel = chan
@@ -631,8 +642,10 @@ class Websitary::Configuration
                 item.title = url_get(url, :title, File.basename(url))
                 item.link  = eval_arg(url_get(url, :rewrite_link, '%s'), [url])
                 [:author, :date, :enclosure, :category, :pubDate].each do |field|
-                    val = url_get(url, format_symbol(field, 'rss_%s'))
-                    item.send(format_symbol(field, '%s='), val) if val
+                    if item.respond_to?(field)
+                        val = url_get(url, format_symbol(field, 'rss_%s'))
+                        item.send(format_symbol(field, '%s='), val) if val
+                    end
                 end
 
                 annotation = difftext_annotation(url)
@@ -762,14 +775,16 @@ HTML
         rv = File.join(@cfgdir, dir, basename)
         rd = File.dirname(rv)
         $logger.debug "encoded_filename: rv0=#{rv}"
-        fm = optval_get(:global, :filename_size, 255)
-        rdok = !ensure_dir || @app.ensure_dir(rd, false)
-        if !rdok or rv.size > fm or File.directory?(rv)
+        fm = optval_get(:global, :filename_size, 200)
+        rdok = rv.size < fm && !File.directory?(rv) && (!ensure_dir || @app.ensure_dir(rd, false))
+        $logger.debug "encoded_filename: rdok=#{rdok} rv.size=#{rv.size} fm=#{fm} directory?=#{File.directory?(rv)}"
+        if !rdok
             # $logger.debug "Filename too long (:global=>:filename_size = #{fm}), try md5 encoded filename instead: #{url}"
             $logger.info "Can't use filename, try 'md5' instead: #{url}"
             rv = File.join(@cfgdir, dir, encoded_basename(url, :md5))
             rd = File.dirname(rv)
         end
+        $logger.debug "encoded_filename: use rv=#{rv}"
         @urlencmap[rv] = url
         return rv
     end
@@ -787,7 +802,7 @@ HTML
 
 
     def encoded_basename_tree(url)
-        ensure_filename(encode(url, '/'))
+        ensure_filename(encode(url, '/'), url = url)
     end
 
 
@@ -1230,7 +1245,11 @@ HTML
         shortcut :mechanize, :delegate => :webdiff,
             :download => lambda {|url|
                 require 'mechanize'
-                agent = WWW::Mechanize.new
+                agent = if defined?(::WWW)
+                            agent = ::WWW::Mechanize.new
+                        else
+                            agent = ::Mechanize.new
+                        end
                 proxy = get_proxy
                 if proxy
                     agent.set_proxy(*proxy)
@@ -1649,19 +1668,26 @@ CSS
     end
 
 
-    def ensure_filename(filename)
+    def ensure_filename(filename, url = nil)
         filename = filename.gsub(/[\/]{2,}/, File::SEPARATOR)
         # File.join(*File.split(filename))
         if filename =~ /#{Regexp.escape(File::SEPARATOR)}$/
-            File.join(filename, '__WEBSITARY__')
+            File.join(filename, default_basename_for_url(url))
         else
             parts = filename.split(/#{Regexp.escape(File::SEPARATOR)}/)
             if parts.size == 2 and parts[0] =~ /^\w+%3a$/
-                File.join(filename, '__WEBSITARY__')
+                File.join(filename, default_basename_for_url(url))
             else
                 filename
             end
         end
+    end
+
+
+    def default_basename_for_url(url)
+        opts = @app.configuration.urls[url]
+        basename = opts[:basename] || '__WEBSITARY__'
+        return basename
     end
 
 
@@ -1759,12 +1785,17 @@ CSS
     end
 
     def rss_item_date(item)
-        case item
-        when RSS::Atom::Feed::Entry
-            rv = item.published
-            rv = rv.content if rv.respond_to?(:content)
-        else
-            rv = item.pubDate.to_s
+        rv = nil
+        for meth in [:published, :pubDate, :date, :dc_date, :updated]
+            if item.respond_to?(meth)
+                rv = item.send(meth).to_s
+                rv = rv.respond_to?(:content) ? rv.content : rv.to_s
+                break unless rv.nil?
+            end
+        end
+        if rv.nil?
+            puts "DBG rss_item_date: #{item.methods.sort.filter {|x| x =~ /date/}.inspect}"
+            puts item
         end
         return rv || ''
     end
@@ -1781,12 +1812,16 @@ CSS
     end
 
     def rss_item_author(item)
-        case item
-        when RSS::Atom::Feed::Entry
-            rv = item.author
-            rv = rv.content if rv.respond_to?(:content)
-        else
-            rv = item.author
+        begin
+            case item
+            when RSS::Atom::Feed::Entry
+                rv = item.author
+                rv = rv.content if rv.respond_to?(:content)
+            else
+                rv = item.author
+            end
+        rescue Exception => e
+            rv = ''
         end
         return rv || ''
     end
