@@ -1,5 +1,5 @@
 # websitary.rb
-# @Last Change: 2012-03-23.
+# @Last Change: 2016-04-08.
 # Author::      Tom Link (micathom AT gmail com)
 # License::     GPL (see http://www.gnu.org/licenses/gpl.txt)
 # Created::     2007-09-08.
@@ -37,6 +37,13 @@ module Websitary
     APPNAME     = 'websitary'
     VERSION     = '0.6'
     REVISION    = '2476'
+
+    def log_error(e)
+        $logger.error e.message
+        $logger.debug e.backtrace
+    end
+    module_function :log_error
+
 end
 
 require 'websitary/applog'
@@ -300,7 +307,7 @@ class Websitary::App
                         difftext = diff(url, opts, latest, older)
                         if difftext
                             @configuration.write_file(diffed, 'wb') {|io| io.puts difftext}
-                            $logger.warn "Save diff with size #{difftext.size} as #{diffed}"
+                            $logger.info "Save diff with size #{difftext.size} as #{diffed}"
                             # $logger.debug "difftext: #{difftext}" #DBG#
                             if accumulator
                                 accumulator.call(url, difftext, opts)
@@ -310,8 +317,11 @@ class Websitary::App
                         end
                     end
                 rescue Exception => e
-                    $logger.error e.to_s
-                    $logger.info e.backtrace.join("\n")
+                    Websitary::log_error(e)
+                    # $logger.error e.message
+                    # $logger.debug e.backtrace
+                    # $logger.error e.to_s
+                    # $logger.error e.backtrace.join("\n")
                 end
             end
         end
@@ -382,7 +392,7 @@ class Websitary::App
             return false
         end
 
-        $logger.warn "Download: #{@configuration.url_get(url, :title, url).inspect}"
+        $logger.info "Download: #{@configuration.url_get(url, :title, url).inspect}"
         @configuration.done << url
         text = @configuration.call_cmd(@configuration.url_get(url, :download), [url], :url => url)
         # $logger.debug text #DBG#
@@ -475,7 +485,7 @@ class Websitary::App
                 end
             end
 
-            $logger.debug "Unchanged: #{@configuration.url_get(url, :title, url).inspect}"
+            $logger.warn "Unchanged: #{@configuration.url_get(url, :title, url).inspect}"
 
         elsif File.exist?(new) and
             (@configuration.url_get(url, :show_initial) or @configuration.optval_get(:global, :show_initial))

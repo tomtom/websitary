@@ -739,6 +739,7 @@ HTML
 
     # Get the filename for the freshly downloaded copy.
     def latestname(url, ensure_dir=false, type=nil)
+        $logger.debug "latestname: url=#{url} ensure_dir=#{ensure_dir} type=#{type}"
         encoded_filename('latest', url, ensure_dir, type)
     end
 
@@ -804,6 +805,9 @@ HTML
         begin
             return File.extname(URI.parse(url).path)
         rescue Exception => e
+            Websitary::log_error(e, url)
+            # $logger.error e.message
+            # $logger.debug e.backtrace
         end
     end
 
@@ -1627,7 +1631,8 @@ CSS
             ftp.chdir(uri.path)
             return ftp.list('*')
         rescue Exception => e
-            $logger.error e
+            $logger.error e.message
+            $logger.debug e.backtrace
         ensure
             ftp.close
         end
