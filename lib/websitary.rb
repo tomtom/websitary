@@ -378,7 +378,11 @@ class Websitary::App
         else
             parent = Pathname.new(dir).parent.to_s
             ensure_dir(parent, fatal_nondir) unless File.directory?(parent)
-            Dir.mkdir(dir)
+            begin
+                Dir.mkdir(dir)
+            rescue Exception => e
+                return false
+            end
         end
         return true
     end
