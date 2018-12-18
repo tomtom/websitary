@@ -1,5 +1,5 @@
 # websitary.rb
-# @Last Change: 2016-04-08.
+# @Last Change: 2016-11-09.
 # Author::      Tom Link (micathom AT gmail com)
 # License::     GPL (see http://www.gnu.org/licenses/gpl.txt)
 # Created::     2007-09-08.
@@ -16,6 +16,7 @@ require 'pathname'
 require 'rbconfig'
 require 'uri'
 require 'open-uri'
+require 'open_uri_redirections'
 require 'timeout'
 require 'yaml'
 require 'rss'
@@ -38,9 +39,22 @@ module Websitary
     VERSION     = '0.6'
     REVISION    = '2476'
 
-    def log_error(e)
-        $logger.error e.message
-        $logger.debug e.backtrace
+    def log_error(e, etc = {})
+        backtrace = etc.has_key?(:backtrace) ? etc[:backtrace] : true
+        if backtrace
+            $logger.error e
+        else
+            $logger.error e.message
+        end
+        url = etc[:url]
+        unless url.nil?
+            $logger.error "URL: #{url}"
+        end
+        # if etc.has_key?(:backtrace) ? etc[:backtrace] : true
+        #     $logger.error e.backtrace.join(' => ')
+        # end
+        # $logger.debug e.backtrace.join(' => ')
+        etc[:default]
     end
     module_function :log_error
 
@@ -79,7 +93,7 @@ class Websitary::App
 
         ensure_dir(@configuration.cfgdir)
         css = File.join(@configuration.cfgdir, 'websitary.css')
-        unless File.exists?(css)
+        unless File.exist?(css)
             $logger.info "Copying default css file: #{css}"
             @configuration.write_file(css, 'w') do |io|
                 io.puts @configuration.opt_get(:page, :css)
@@ -290,7 +304,7 @@ class Websitary::App
             diffed = @configuration.diffname(url, true)
             $logger.debug "diffname: #{diffed}"
 
-            if File.exists?(diffed)
+            if File.exist?(diffed)
                 $logger.warn "Reuse old diff: #{@configuration.url_get(url, :title, url)} => #{diffed}"
                 difftext = File.read(diffed)
                 accumulate(url, difftext, opts)
@@ -305,10 +319,10 @@ class Websitary::App
                 begin
                     if rebuild or download(url, opts, latest, older)
                         difftext = diff(url, opts, latest, older)
+                        $logger.debug "url: #{url}, difftext.size: #{difftext.nil? ? 'nil' : difftext.size}"
                         if difftext
                             @configuration.write_file(diffed, 'wb') {|io| io.puts difftext}
                             $logger.info "Save diff with size #{difftext.size} as #{diffed}"
-                            # $logger.debug "difftext: #{difftext}" #DBG#
                             if accumulator
                                 accumulator.call(url, difftext, opts)
                             else
@@ -319,9 +333,9 @@ class Websitary::App
                 rescue Exception => e
                     Websitary::log_error(e)
                     # $logger.error e.message
-                    # $logger.debug e.backtrace
-                    # $logger.error e.to_s
-                    # $logger.error e.backtrace.join("\n")
+                    # # $logger.debug e.backtrace
+                    # # $logger.error e.to_s
+                    # $logger.error e.backtrace.join(' -> ')
                 end
             end
         end
@@ -342,8 +356,8 @@ class Websitary::App
 
 
     def copy_move(method, from, to)
-        if File.exists?(from)
-            $logger.debug "Overwrite: #{from} -> #{to}" if File.exists?(to)
+        if File.exist?(from)
+            $logger.debug "Overwrite: #{from} -> #{to}" if File.exist?(to)
             lst = File.lstat(from)
             FileUtils.send(method, from, to)
             File.utime(lst.atime, lst.mtime, to)
@@ -398,7 +412,13 @@ class Websitary::App
 
         $logger.info "Download: #{@configuration.url_get(url, :title, url).inspect}"
         @configuration.done << url
-        text = @configuration.call_cmd(@configuration.url_get(url, :download), [url], :url => url)
+        begin
+            text = @configuration.call_cmd(@configuration.url_get(url, :download), [url], :url => url)
+        rescue Timeout::Error => e
+            Websitary::log_error(e)
+            $logger.warn "Timeout: #{url}"
+            return false
+        end
         # $logger.debug text #DBG#
         unless text
             $logger.warn "no contents: #{@configuration.url_get(url, :title, url)}"
@@ -409,7 +429,15 @@ class Websitary::App
             if (sleepsecs = opts[:sleep])
                 sleep sleepsecs
             end
-            text = text.split("\n")
+            begin
+                text = text.split("\n")
+            rescue ArgumentError => e
+                $logger.debug 'ArgumentError assume latin-1 & recode to utf-8; url=#{url}'
+                text = text.force_encoding('ISO-8859-1').encode('utf-8').split("\n")
+            rescue Exception => e
+                Websitary::log_error(e, :url => url)
+                return false
+            end
             if (range = opts[:lines])
                 $logger.debug "download: lines=#{range}"
                 text = text[range] || []
@@ -472,7 +500,7 @@ class Websitary::App
 
 
     def diff(url, opts, new, old)
-        if File.exists?(old)
+        if File.exist?(old)
             $logger.debug "diff: #{old} <-> #{new}"
             difftext = @configuration.call_cmd(@configuration.url_get(url, :diff), [old, new], :url => url)
             # $logger.debug "diff: #{difftext}" #DBG#
@@ -502,7 +530,7 @@ class Websitary::App
 
 
     def skip_url?(url, latest, opts)
-        if File.exists?(latest) and !opts[:ignore_age]
+        if File.exist?(latest) and !opts[:ignore_age]
             tn = Time.now
             tl = @configuration.mtimes.mtime(latest)
             td = tn - tl
@@ -582,11 +610,9 @@ class Websitary::App
 
 
     def show
-        begin
-            return @configuration.show_output(@difftext)
-        ensure
-            clean_diffs
-        end
+        rv = @configuration.show_output(@difftext)
+        clean_diffs
+        rv
     end
 
 

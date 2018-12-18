@@ -1,8 +1,9 @@
-# @Last Change: 2016-04-08.
+# @Last Change: 2018-12-18.
 # Author::      Thomas Link (micathom AT gmail com)
 # License::     GPL (see http://www.gnu.org/licenses/gpl.txt)
 
 require 'iconv' if RUBY_VERSION < "2.0.0"
+# require 'addressable'
 
 
 # This class defines the scope in which profiles are evaluated. Most 
@@ -34,15 +35,19 @@ class Websitary::Configuration
         else
             @rb_config = ::Config::CONFIG
         end
+        # @uri_class = Addressable::URI
+        @uri_class = URI
         @logger = Websitary::AppLog.new
         $logger.debug "Configuration#initialize"
         @app    = app
         @cfgdir = ENV['HOME'] ? File.join(ENV['HOME'], '.websitary') : '.'
         [
             ENV['USERPROFILE'] && File.join(ENV['USERPROFILE'], 'websitary'),
+            ENV['USERPROFILE'] && File.join(ENV['USERPROFILE'], 'local', 'share', 'websitary'),
+            ENV['USERPROFILE'] && File.join(ENV['USERPROFILE'], 'AppData', 'Roaming', 'websitary'),
             File.join(@rb_config['sysconfdir'], 'websitary')
         ].each do |dir|
-            if dir and File.exists?(dir)
+            if dir and File.exist?(dir)
                 @cfgdir = dir
                 break
             end
@@ -207,6 +212,7 @@ class Websitary::Configuration
     # url:: String
     # opt:: Symbol
     def url_get(url, opt, default=nil)
+        $logger.debug "url_get #{url}"
         opts = @urls[url]
         unless opts
             $logger.debug "Non-registered URL: #{url}"
@@ -350,6 +356,7 @@ class Websitary::Configuration
 
 
     def to_do(url)
+        $logger.debug "to_do: #{url}"
         @todo << url unless is_excluded?(url)
     end
 
@@ -492,7 +499,10 @@ class Websitary::Configuration
 
 
     def format_text(url, text, enc = nil)
-        enc ||= url_get(url, :iconv)
+        if enc.is_a?(Symbol)
+            enc = enc = optval_get(:global, enc)
+        end
+        enc ||= url_get(url, :iconv, text.encoding)
         if enc
             denc = optval_get(:global, :encoding)
             if enc != denc
@@ -695,25 +705,36 @@ class Websitary::Configuration
         end.join("\n")
 
         idx = 0
-        cnt = difftext.map do |url, text|
-            idx += 1
-            ti   = get_title(url)
-            bid  = html_body_id(url)
-            if (rewrite = url_get(url, :rewrite_link))
-                urlr = eval_arg(rewrite, [url])
-                ext  = ''
-            else
-                old  = %{<a class="old" href="#{file_url(oldname(url))}">old</a>}
-                lst  = %{<a class="latest" href="#{file_url(latestname(url))}">latest</a>}
-                ext  = %{ (#{old}, #{lst})}
-                urlr = url
-            end
-            note    = difftext_annotation(url)
-            onclick = optval_get(:global, :toggle_body) ? 'onclick="ToggleBody(this)"' : ''
-            <<HTML
+        begin
+            cnts = difftext.map do |url, text|
+                idx += 1
+                ti   = get_title(url)
+                bid  = html_body_id(url)
+                if (rewrite = url_get(url, :rewrite_link))
+                    urlr = eval_arg(rewrite, [url])
+                    ext  = ''
+                else
+                    old  = %{<a class="old" href="#{file_url(oldname(url))}">old</a>}
+                    lst  = %{<a class="latest" href="#{file_url(latestname(url))}">latest</a>}
+                    ext  = %{ (#{old}, #{lst})}
+                    urlr = url
+                end
+                note    = difftext_annotation(url)
+                onclick = optval_get(:global, :toggle_body) ? 'onclick="ToggleBody(this)"' : ''
+                begin
+                    if RUBY_VERSION >= "2.0.0"
+                        enc = optval_get(:global, :encoding)
+                        ti = ti.encode(enc)
+                        bid = bid.encode(enc)
+                        onclick = onclick.encode(enc)
+                        # idx = idx.encode(enc)
+                        ext = ext.encode(enc)
+                        urlr = urlr.encode(enc)
+                    end
+                    html = <<HTML
 <div id="#{bid}" class="webpage" #{onclick}>
 <div class="count">
-#{idx}
+                    #{idx}
 </div>
 <h1 class="diff">
 <a class="external" href="#{urlr}">#{format_text(url, ti)}</a>#{ext}
@@ -728,7 +749,19 @@ class Websitary::Configuration
 </div>
 </div>
 HTML
-        end.join(('<hr class="separator"/>') + "\n")
+                    format_text(url, html)
+                rescue Exception => e
+                    Websitary::log_error(e, :url => url)
+                end
+            end
+            cnt = cnts.join(('<hr class="separator"/>') + "\n")
+        rescue Exception => e
+            Websitary::log_error(e)
+            cnts.each do |c|
+                $logger.error "#{c.encoding}: #{c.inspect}"
+            end
+            raise e
+        end
 
         success, template = opt_get(:page, :format)
         unless success
@@ -818,9 +851,9 @@ HTML
 
     def urlextname(url)
         begin
-            return File.extname(URI.parse(url).path)
+            return File.extname(@uri_class.parse(url).path)
         rescue Exception => e
-            Websitary::log_error(e, url)
+            Websitary::log_error(e, :url => url)
             # $logger.error e.message
             # $logger.debug e.backtrace
         end
@@ -910,20 +943,20 @@ HTML
             return if robots?(document, 'nofollow') or is_excluded?(url)
             depth = url_get(url, :depth)
             return if depth and depth <= 0
-            uri0  = URI.parse(url)
+            uri0  = @uri_class.parse(url)
             # pn0   = Pathname.new(guess_dir(File.expand_path(uri0.path)))
             pn0   = Pathname.new(guess_dir(uri0.path))
             (document / 'a').each do |a|
                 next if a['rel'] == 'nofollow'
                 href = clean_url(a['href'])
                 next if href.nil? or href == url or is_excluded?(href)
-                uri  = URI.parse(href)
+                uri  = @uri_class.parse(href)
                 pn   = guess_dir(uri.path)
                 href = rewrite_href(href, url, uri0, pn0, true)
                 curl = canonic_url(href)
                 next if !href or href.nil? or @done.include?(curl) or @todo.include?(curl)
                 # pn   = Pathname.new(guess_dir(File.expand_path(uri.path)))
-                uri  = URI.parse(href)
+                uri  = @uri_class.parse(href)
                 pn   = Pathname.new(guess_dir(uri.path))
                 next unless condition.call(uri0, pn0, uri, pn)
                 next unless robots_allowed?(curl, uri)
@@ -936,9 +969,10 @@ HTML
                 to_do curl
             end
         rescue Exception => e
-            # $logger.error e  #DBG#
-            $logger.error e.message
-            $logger.debug e.backtrace
+            Websitary::log_error(e)
+            # # $logger.error e  #DBG#
+            # $logger.error e.message
+            # $logger.debug e.backtrace
         end
     end
 
@@ -947,25 +981,51 @@ HTML
     # url:: String
     # doc:: markup document
     def rewrite_urls(url, doc)
-        uri = URI.parse(url)
+        $logger.debug "rewrite_urls url = #{url}"
+        uri = @uri_class.parse(url)
         urd = guess_dir(uri.path)
-        (doc / 'a').each do |a|
-            href = clean_url(a['href'])
-            if is_excluded?(href)
-                comment_element(doc, a)
-            else
-                href = rewrite_href(href, url, uri, urd, true)
-                a['href'] = href if href
+        $logger.debug "rewrite_urls each a"
+        begin
+            (doc / 'a').each do |a|
+                begin
+                    # $logger.debug "rewrite_urls a = #{a}"
+                    href = clean_url(a['href'])
+                    # $logger.debug "rewrite_urls a href = #{href}"
+                    if is_excluded?(href)
+                        comment_element(doc, a)
+                    else
+                        href1 = rewrite_href(href, url, uri, urd, true)
+                        # $logger.debug "rewrite_urls href1 #{href} => #{href1}"
+                        a['href'] = href1 if href1
+                    end
+                rescue ArgumentError => e
+                    # p 'Anchor:', a.to_s.encoding
+                    # p a.inspect
+                    Websitary::log_error(e, :url => url)
+                    # $logger.error a.inspect
+                end
             end
+        rescue Exception => e
+            $logger.debug "ERROR: doc / 'a': #{url}"
+            Websitary::log_error(e)
         end
-        (doc / 'img').each do |a|
-            href = clean_url(a['src'])
-            if is_excluded?(href)
-                comment_element(doc, a)
-            else
-                href = rewrite_href(href, url, uri, urd, false)
-                a['src'] = href if href
+        $logger.debug "rewrite_urls each img"
+        begin
+            (doc / 'img').each do |a|
+                $logger.debug "rewrite_urls img = #{a}"
+                href = clean_url(a['src'])
+                $logger.debug "rewrite_urls img/href = #{href}"
+                if is_excluded?(href)
+                    comment_element(doc, a)
+                else
+                    href1 = rewrite_href(href, url, uri, urd, false)
+                    $logger.debug "rewrite_urls href1 #{href} => #{href1}"
+                    a['src'] = href1 if href1
+                end
             end
+        rescue Exception => e
+            $logger.debug "ERROR: doc / 'img': #{url}"
+            Websitary::log_error(e)
         end
         doc
     end
@@ -980,15 +1040,33 @@ HTML
     # Try to make href an absolute url.
     def rewrite_href(href, url, uri=nil, urd=nil, local=false)
         begin
+            $logger.debug "rewrite_href href = #{href}; url = #{url}"
             return nil if !href or is_excluded?(href)
-            uri ||= URI.parse(url)
-            if href =~ /^\s*\//
-                return uri.merge(href).to_s
+            uri ||= @uri_class.parse(url)
+            if href =~ /^\/\//
+                href = uri.scheme + href
             end
-            urh   = URI.parse(href)
+            # if href =~ /^[a-zA-Z0-9]+:\//
+            #     begin
+            #         return uri.merge(href).to_s
+            #     rescue @uri_class::InvalidURIError => e
+            #         Websitary::log_error(e, :url => url, :backtrace => false)
+            #         $logger.error "href=#{href}"
+            #         $logger.error "uri=#{uri}"
+            #     end
+            # else
+            begin
+                urh = @uri_class.parse(href)
+            rescue @uri_class::InvalidURIError => e
+                Websitary::log_error(e, :url => url, :backtrace => false)
+                $logger.debug "rewrite_href InvalidURIError for href #{href}"
+                href = @uri_class.encode(href)
+                $logger.debug "rewrite_href href => #{href}"
+                urh = @uri_class.parse(href)
+                $logger.debug "rewrite_href urh => #{urh}"
+            end
             urd ||= guess_dir(uri.path)
             rv    = nil
-
             # $logger.debug "DBG", uri, urh, #DBG#
             if href =~ /\w+:/
                 # $logger.debug "DBG href=#$0" #DBG#
@@ -997,7 +1075,7 @@ HTML
                 # $logger.debug "DBG urh relative" #DBG#
                 if uri.relative?
                     # $logger.debug "DBG both relative" #DBG#
-                    if uri.instance_of?(URI::Generic)
+                    if uri.instance_of?(@uri_class::Generic)
                         rv = File.join(urd, href)
                         # $logger.debug "DBG rv=#{rv}" #DBG#
                     end
@@ -1022,7 +1100,6 @@ HTML
                 # $logger.debug "as is" #DBG#
                 rv = href
             end
-
             case rv
             when String
                 return rv
@@ -1033,9 +1110,10 @@ HTML
             end
             return
         rescue Exception => e
-            # $logger.error e  #DBG#
-            $logger.error e.message
-            $logger.debug e.backtrace
+            Websitary::log_error(e)
+            # # $logger.error e  #DBG#
+            # $logger.error e.message
+            # $logger.debug e.backtrace
         end
         return nil
     end
@@ -1076,7 +1154,7 @@ HTML
         filename = nil
         ['.', @cfgdir].each do |d|
             filename = File.join(d, profile_name)
-            if File.exists?(filename)
+            if File.exist?(filename)
                 return filename
             end
         end
@@ -1223,9 +1301,10 @@ HTML
                     # $logger.debug "body_html doc.size: #{doc.class}"
                     body_html(url, doc).to_s
                 rescue Exception => e
-                    # $logger.error e  #DBG#
-                    $logger.error e.message
-                    $logger.debug e.backtrace
+                    Websitary::log_error(e)
+                    # # $logger.error e  #DBG#
+                    # $logger.error e.message
+                    # $logger.debug e.backtrace
                     break %{<pre class="error">\n#{e.message}\n</pre>}
                 end
             }
@@ -1235,9 +1314,10 @@ HTML
                 begin
                     read_url_openuri(url)
                 rescue Exception => e
-                    # $logger.error e  #DBG#
-                    $logger.error e.message
-                    $logger.debug e.backtrace
+                    Websitary::log_error(e)
+                    # # $logger.error e  #DBG#
+                    # $logger.error e.message
+                    # $logger.debug e.backtrace
                     %{<pre class="error">\n#{e.to_s}\n</pre>}
                 end
             }
@@ -1257,7 +1337,7 @@ HTML
                 page = agent.get(url)
                 process = url_get(url, :mechanize)
                 if process
-                    uri = URI.parse(url)
+                    uri = @uri_class.parse(url)
                     urd = guess_dir(uri.path)
                     page.links.each {|link|
                         href = link.node['href']
@@ -1295,6 +1375,7 @@ HTML
                             if !rh[rid]
                                 idesc = rss_item_description(item)
                                 ilink = rss_item_link(item)
+                                $logger.debug "DBG item.methods = #{item.methods.sort}"
                                 begin
                                     iguid = item.guid
                                 rescue Exception
@@ -1369,7 +1450,7 @@ HTML
 
         shortcut :opml, :delegate => :rss,
             :download => lambda {|url|
-                opml = open(url) {|io| io.read}
+                opml = open(url, :allow_redirections => :all) {|io| io.read}
                 if oplm
                     xml = Document(opml)
                     # <+TBD+>Well, maybe would should search for outline[@type=rss]?
@@ -1432,12 +1513,13 @@ HTML
 
         @options[:page] = {
             :format => lambda {|ti, li, bd|
+                enc = optval_get(:global, :encoding)
                 template = <<OUT
 <!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
 <html>
 <head>
 <title>%s</title>
-<meta http-equiv="Content-Type" content="text/html; charset=#{optval_get(:global, :encoding)}">
+<meta http-equiv="Content-Type" content="text/html; charset=#{enc}">
 <link rel="stylesheet" href="websitary.css" type="text/css">
 <link rel="alternate" href="websitary.rss" type="application/rss+xml" title="%s">
 </head>
@@ -1466,7 +1548,11 @@ function ToggleBody(Item) {
 </body>
 </html>
 OUT
-                template % [ti, ti, li, bd]
+                if RUBY_VERSION >= "2.0.0"
+                    template % [ti.encode(enc), ti.encode(enc), li.encode(enc), bd.encode(enc)]
+                else
+                    template % [ti, ti, li, bd]
+                end
             },
             :css => <<CSS,
 body {
@@ -1629,8 +1715,8 @@ CSS
             if doc
                 return if robots?(doc, 'noindex')
                 push_hrefs(url, doc) do |uri0, pn0, uri, pn|
-                    (uri.host || uri.is_a?(URI::Generic)) &&
-                        (uri0.host || uri0.is_a?(URI::Generic)) &&
+                    (uri.host || uri.is_a?(@uri_class::Generic)) &&
+                        (uri0.host || uri0.is_a?(@uri_class::Generic)) &&
                         eligible_path?(url, uri0.path, uri.path) &&
                         uri.host == uri0.host &&
                         (pn.to_s == '.' || pn.relative_path_from(pn0).to_s == '.')
@@ -1642,7 +1728,7 @@ CSS
 
 
     def get_ftp(url)
-        uri = URI.parse(url)
+        uri = @uri_class.parse(url)
         ftp = Net::FTP.new(uri.host)
         ftp.passive = true
         begin
@@ -1650,8 +1736,9 @@ CSS
             ftp.chdir(uri.path)
             return ftp.list('*')
         rescue Exception => e
-            $logger.error e.message
-            $logger.debug e.backtrace
+            Websitary::log_error(e)
+            # $logger.error e.message
+            # $logger.debug e.backtrace
         ensure
             ftp.close
         end
@@ -1686,7 +1773,7 @@ CSS
 
     def default_basename_for_url(url)
         opts = @app.configuration.urls[url]
-        basename = opts[:basename] || '__WEBSITARY__'
+        basename = (!opts.nil? && opts[:basename]) || '__WEBSITARY__'
         return basename
     end
 
@@ -1726,17 +1813,25 @@ CSS
             exit 5
         end
         $logger.debug "Open URL: #{url}"
-        uri = URI.parse(url)
-        if uri.instance_of?(URI::Generic) or uri.scheme == 'file'
-            open(url).read
+        uri = @uri_class.parse(url)
+        if uri.instance_of?(@uri_class::Generic) or uri.scheme == 'file'
+            open(url, :allow_redirections => :all).read
         else
-            args = {"User-Agent" => optval_get(:global, :user_agent)}
+            args = {:allow_redirections => :all, "User-Agent" => optval_get(:global, :user_agent)}
             args.merge!(url_get(url, :header, {}))
             # proxy = get_proxy
             # if proxy
             #     args[:proxy] = proxy[0,2].join(':')
             # end
-            open(url, args).read
+            begin
+                open(url, args).read
+            rescue OpenURI::HTTPError => e
+                Websitary::log_error(e, :url => url, :backtrace => false)
+            rescue RuntimeError => e
+                Websitary::log_error(e, :url => url, :backtrace => false)
+            rescue
+                Websitary::log_error(e, :url => url)
+            end
         end
     end
 
